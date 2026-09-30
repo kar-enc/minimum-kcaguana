@@ -9,7 +9,7 @@ void executeLine(char *line, unsigned int length) {
     //skip leading spaces
     unsigned int head = 0U;
     while ( head < length && line[head] == ' ') {
-        head++;
+        ++head;
     }
 
     //base cases
@@ -17,46 +17,49 @@ void executeLine(char *line, unsigned int length) {
         return; 
     }
 
-    int tail = head;
+    unsigned int tail = head;
     //trying to find end of first work aka the command , and since we figured out leading spaces we jsut check til we reach another empty space.
     while (tail < length && line[tail] != ' ') {
-        tail++;
+        ++tail;
     }
 
     //check if its echo
-    if (
+    if (tail - head == 4U&&
         line[head] == 'e'&&
         line[head + 1] == 'c'&&
         line[head + 2] == 'h'&&
-        line[head + 3] == 'o'&&
-        tail - head == 4
+        line[head + 3] == 'o'
     ) {
         //we know we have echo cmd, just gotta figure out what to echo
         //gotta skip spaces after cmd
         unsigned int echoStart = tail;
         while (echoStart < length && line[echoStart] == ' ') {
-            echoStart++;
+            ++echoStart;
         }
 
-        if (echoStart < length) {
-            //print the rest of the line as the echo content
-            printf("%s\n", &line[echoStart]);
-        }
+        printf("%s\n", &line[echoStart]);
+        return;
+
+        // if (echoStart < length) {
+        //     //print the rest of the line as the echo content
+        //     printf("%s\n", &line[echoStart]);
+        // }
     }
     //if its not echo
     else {
-        int notFoundStart = tail;
-        while (notFoundStart < length && line[notFoundStart] == ' ') {
-            notFoundStart++;
-        }
+        // int notFoundStart = tail;
+        // while (notFoundStart < length && line[notFoundStart] == ' ') {
+        //     notFoundStart++;
+        // }
 
-        if (notFoundStart < length) {
-            //print the rest of the line as the echo content
-            for (int i = notFoundStart; i < length; i++) {
-                int word = notFoundStart[i];
-                notFoundStart++;
-            }
-        }
+        // if (notFoundStart < length) {
+        //     //print the rest of the line as the echo content
+        //     for (int i = notFoundStart; i < length; i++) {
+        //         int word = notFoundStart[i];
+        //         notFoundStart++;
+        //     }
+        // }
+        line[tail] = '\0';
         printf("command not found: %s\n", &line[head]);
     }
 }
