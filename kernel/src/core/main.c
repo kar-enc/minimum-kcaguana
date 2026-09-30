@@ -2,6 +2,9 @@
 #include "minemu/trap.h"
 #include "minemu/trace.h"
 #include "minemu/printf.h"
+#include "minemu/uart.h"
+#include "minemu/msh.h"
+#include "minemu/irq.h"
 
 void minemu_kernel_main(const struct minemu_boot_info *boot_info) {
     if ((uintptr_t)boot_info != MINEMU_BOOT_INFO_VADDR ||

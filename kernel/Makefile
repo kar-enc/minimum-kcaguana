@@ -14,8 +14,12 @@ RUNTIME_OBJECTS := \
 	$(BUILD)/runtime/trace.o \
 	$(BUILD)/startup/boot.o \
 	$(BUILD)/runtime/uart.o \
+	//needed files added here were provided by gpt6.1
 	$(BUILD)/runtime/printf.o \
+	$(BUILD)/runtime/msh.o \
+	$(BUILD)/runtime/irq.o \
 	$(BUILD)/startup/vectors.o
+	$(BUILD)/startup/irq.o
 
 OBJECTS := $(CORE_OBJECT) $(RUNTIME_OBJECTS)
 DEPENDENCIES := $(OBJECTS:.o=.d)
