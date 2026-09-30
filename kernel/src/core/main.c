@@ -17,5 +17,7 @@ void minemu_kernel_main(const struct minemu_boot_info *boot_info) {
     }
     printf("Hello world\n");
     minemu_trace_event(1);
+    uartStart();
+    minemu_irq_enable();
     minemu_fail_stop();
 }

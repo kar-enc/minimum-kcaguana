@@ -13,7 +13,7 @@ static irq_handler_t handlers[4] = {
 };
 
 static void uart0_irq_handler(void) {
-    uart_rx_interrupt();
+    uartInterrupt();
 }
 
 struct minemu_trap_frame *minemu_irq_dispatch(struct minemu_trap_frame *frame) {
