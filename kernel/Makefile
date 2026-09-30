@@ -16,9 +16,7 @@ RUNTIME_OBJECTS := \
 	$(BUILD)/runtime/uart.o \
 	$(BUILD)/runtime/printf.o \
 	$(BUILD)/runtime/msh.o \
-	$(BUILD)/runtime/irq.o \
 	$(BUILD)/startup/vectors.o \
-	$(BUILD)/startup/irq.o
 
 OBJECTS := $(CORE_OBJECT) $(RUNTIME_OBJECTS)
 DEPENDENCIES := $(OBJECTS:.o=.d)
@@ -52,6 +50,11 @@ LDFLAGS := $(ARCH_FLAGS) \
 
 LIBGCC := $(shell $(CC) $(ARCH_FLAGS) -print-libgcc-file-name)
 
+CORE_OBJECT := \
+	$(BUILD)/core/main.o \
+	$(BUILD)/runtime/irq.o \
+	$(BUILD)/startup/irq.o
+	
 .PHONY: all runtime clean
 
 all: $(KERNEL)
