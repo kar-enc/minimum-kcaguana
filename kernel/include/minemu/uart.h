@@ -5,6 +5,6 @@
 
 void uartStart(void);
 void uartInterrupt(void);
-void uartReadByte(void);
+int uartReadByte(void);
 
 #endif 
