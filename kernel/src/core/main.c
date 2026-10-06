@@ -5,12 +5,12 @@
 #include "minemu/uart.h"
 #include "minemu/msh.h"
 #include "minemu/irq.h"
+#include "minemu/abi.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include "../include/hello_syscall.h"
 #include "minemu/mmu.h"
 #include "minemu/platform.h"
 #include "minemu/syscall.h"

@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "minemu/user_abi.h"
 
 
 void minemu_user_main(void) {
