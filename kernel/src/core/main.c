@@ -5,7 +5,7 @@
 #include "minemu/uart.h"
 #include "minemu/msh.h"
 #include "minemu/irq.h"
-#include "minemu/abi.h"
+#include "minemu/user_abi.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -273,6 +273,16 @@ static bool load_user_module(const struct minemu_boot_info *boot_info,
     minemu_mmu_tlbiall();
     return true;
 }
+
+/*
+we have to:
+syscall:
+verify call came from a32 user mode (through the expected svc instruction) checks the syscall
+number and request, validates any user-memory ranges, and performs the operation and return saved in r0
+
+
+
+*/
 
 struct minemu_trap_frame *minemu_svc_dispatch(struct minemu_trap_frame *frame) {
     uint32_t mode = frame->spsr & CPSR_MODE_MASK;
