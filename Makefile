@@ -1,4 +1,4 @@
-//updated with gpt6.1 sol
+# updated with gpt6.1 sol
 MINEMU ?= minemu
 
 .PHONY: all bootloader bootloader-check kernel kernel-examples user image \

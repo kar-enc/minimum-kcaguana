@@ -1,4 +1,4 @@
-//updated with gpt6.1 sol
+#updated with gpt6.1 sol
 PROGRAMS := minimum-user
 
 .PHONY: all lib programs clean $(PROGRAMS)

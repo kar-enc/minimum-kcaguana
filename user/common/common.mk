@@ -1,4 +1,4 @@
-//updated with gpt6.1 sol
+#updated with gpt6.1 sol
 ARM_PREFIX ?= arm-none-eabi-
 CC := $(ARM_PREFIX)gcc
 

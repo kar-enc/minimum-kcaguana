@@ -28,7 +28,6 @@
 #define CPSR_THUMB UINT32_C(0x20)
 #define A32_SVC_ZERO UINT32_C(0xef000000)
 
-
 static uint32_t system_rom_tables[SYSTEM_ROM_TABLE_COUNT][1024]
     __attribute__((aligned(MINEMU_PAGE_SIZE)));
 static uint32_t user_page_table[1024] __attribute__((aligned(MINEMU_PAGE_SIZE)));
@@ -38,7 +37,6 @@ static uint8_t user_stack[MINEMU_PAGE_SIZE] __attribute__((aligned(MINEMU_PAGE_S
 static uint32_t user_page_vaddrs[MAX_USER_IMAGE_PAGES];
 static uint32_t user_page_flags[MAX_USER_IMAGE_PAGES];
 static size_t user_page_count;
-
 
 void minemu_enter_user(uint32_t entry_vaddr, uint32_t stack_top) __attribute__((noreturn));
 
@@ -272,195 +270,221 @@ static bool load_user_module(const struct minemu_boot_info *boot_info,
     return true;
 }
 
-/*
-we have to:
-syscall:
-verify call came from a32 user mode (through the expected svc instruction) checks the syscall
-number and request, validates any user-memory ranges, and performs the operation and return saved in r0
-*/
-
-//check syscall number and request and the kernel validates the entire requested memory range. Every page containing part of the buffer must be mapped, accessible to the user, and readable.
-
 static bool validate_user_memory_range(uint32_t addr, uint32_t length, uint32_t permissions) {
+    //syntax + formatting was fixed with gpt 6.1 from this commit on
 
     if (length == 0) {
         return true;
     }
 
-    if (addr <USER_IMAGE_BASE || addr > USER_STACK_TOP || addr + length > USER_STACK_BOTTOM) {
+    if (addr <USER_IMAGE_BASE || addr >= USER_STACK_TOP || length > USER_STACK_TOP - addr) {
         return false;
-
     }
 
-    //READ for uart read and write for uart write. fix !!!
-    uint32_t permissions = MINEMU_PTE_VALID | MINEMU_PTE_USER | permissions;
+    uint32_t neededPermissions = MINEMU_PTE_VALID | MINEMU_PTE_USER | permissions;
+    
+    uint32_t startPage = MINEMU_PAGE_SIZE * (addr / MINEMU_PAGE_SIZE);
+    uint32_t endPage = MINEMU_PAGE_SIZE * ((addr + length - 1U) / MINEMU_PAGE_SIZE);
 
+    for (uint32_t page = startPage; page <= endPage;page += MINEMU_PAGE_SIZE) {
 
-    //because buffer can touch 2 pages need to check all possibilites
-    uint32_t startPage = MINEMU_PTE_PAGE_SIZE * (addr / MINEMU_PAGE_SIZE);
-    uint32_t endPage = MINEMU_PTE_PAGE_SIZE * ((addr + length - 1) / MINEMU_PAGE_SIZE);
-
-    for (uint32_t page = startPage; page <= endPage; page += MINEMU_PAGE_SIZE) {
-        //there 1024 entried
         uint32_t index = (page >> 12) & 1023U;
-        if (user_page_table[index] != permissions) {
+        uint32_t entry = user_page_table[index];
+
+        if ((entry & neededPermissions) != neededPermissions) {
             return false;
         }
-
     }
     return true;
 }
 
+static int32_t dispatch_ioctl(uint32_t fd, uint32_t op, uint32_t arg, uint32_t arg2) {
 
-struct minemu_trap_frame *minemu_svc_dispatch(struct minemu_trap_frame *frame) {
-    uint32_t mode = frame->spsr & CPSR_MODE_MASK;
-    if (frame->exception_id != MINEMU_EXCEPTION_SVC || mode != CPSR_MODE_USR ||
-        (frame->spsr & CPSR_THUMB) != 0) {
-        frame->r[0] = (uint32_t)MINEMU_IOCTL_ERROR;
-        return frame;
-    }
+    //syntax + formatting was fixed with gpt 6.1 from this commit on
+    volatile struct minemu_uart_regs *uartReg = NULL;
+    uint32_t permissions = 0;
+    bool readOperation = false;
 
-    if ((frame->fault_pc & 3U) != 0 || !validate_user_memory_range(frame->fault_pc, sizeof(uint32_t))) {
-        frame->r[0] = (uint32_t)MINEMU_IOCTL_ERROR;
-        return frame;
-    }   
-    uint32_t instruction = *(const uint32_t *)(uintptr_t)frame->fault_pc;
-    if (instruction != A32_SVC_ZERO || frame->r[7] != MINEMU_HELLO_SYSCALL_UART_PUTCHAR ||
-        frame->r[0] > MINEMU_SYSCALL_IOCTL) {
-        frame->r[0] = (uint32_t)MINEMU_IOCTL_ERROR;
-        return frame;
-    }
-    //adjust exmaple for ioctl, the 4 arguments are passed in r0, r1, r2, r3
-    int32_t result = ioctl(frame->r[0], frame->r[1], frame->r[2], frame->r[3]);
-    frame->r[0] = (uint32_t)result;
-    return frame;
-}
+    if (fd == MINEMU_FD_UART0) {
+        uartReg = MINEMU_UART0;
 
-static uint32_t ioctl(uint32_t fd, uint32_t op, uint32_t arg, uint32_t arg2) {
-    if (fd == MINEMU_FD_UART_IN || fd == MINEMU_FD_UART_OUT) {
-       //will point to the correct uart register 
-       volatile struct minemu_art_regs *uartReg = NULL;
-       
-       //making sure kernal can handler both interfaces 
-       if (fd == MINEMU_FD_UART_IN || fd == MINEMU_FD_UART_OUT || fd == MINEMU_FD_UART0 || fd == MINEMU_FD_UART1) {
-            if (fd == MINEMU_FD_UART1){
-                uartReg = MINEMU_UART1;
-            } else {
-                uartReg = MINEMU_UART0;
-            }
-       }
-
-       if (fd == MINEMU_FD_UART0 || fd == MINEMU_FD_UART1) {
-            if (op == MINEMU_OP_UART_READ) {
-                op = MINEMU_IOCTL_UART_READ;
-            } else if (op == MINEMU_OP_UART_WRITE) {
-                op = MINEMU_IOCTL_UART_WRITE;
-            } else {
-                return MINEMU_IOCTL_ERROR;
-            }
-        } else if (fd == MINEMU_FD_UART_IN) {
-            if (op != MINEMU_IOCTL_UART_READ) {
-                return MINEMU_IOCTL_ERROR;
-            }
-        } else if (fd == MINEMU_FD_UART_OUT) {
-            if (op != MINEMU_IOCTL_UART_WRITE) {
-                return MINEMU_IOCTL_ERROR;
-            }
-        }
-
-        if (arg2 > INT32_MAX) {
-            return MINEMU_IOCTL_ERROR;
-        }
-
-       uint32_t permissions;
-       if (op == MINEMU_IOCTL_UART_READ) {
+        if (op == MINEMU_OP_UART_READ) {
             permissions = MINEMU_PTE_WRITABLE;
-        } else if (op == MINEMU_IOCTL_UART_WRITE) {
+            readOperation = true;
+        } else if (op == MINEMU_OP_UART_WRITE) {
             permissions = MINEMU_PTE_READABLE;
         } else {
             return MINEMU_IOCTL_ERROR;
         }
 
-        if (!validate_user_memory_range((uintptr_t)arg, sizeof(uint32_t), permissions)) {
+    } else if (fd == MINEMU_FD_UART1) {
+        uartReg = MINEMU_UART1;
+
+        if (op == MINEMU_OP_UART_READ) {
+            permissions = MINEMU_PTE_WRITABLE;
+            readOperation = true;
+        } else if (op == MINEMU_OP_UART_WRITE) {
+            permissions = MINEMU_PTE_READABLE;
+        } else {
             return MINEMU_IOCTL_ERROR;
         }
 
-        //make buffer so bytes cna be accessed
-        //for write loop until ready then write to tx
-        //for read loops until no more room then reach from rx then stores in buffer
+    } else if (fd == MINEMU_FD_UART_IN) {
+        if (op == MINEMU_IOCTL_UART_READ) {
+            uartReg = MINEMU_UART0;
+            permissions = MINEMU_PTE_WRITABLE;
+            readOperation = true;
+        } else {
+            return MINEMU_IOCTL_ERROR;
+        }
 
-        uint32_t *buffer = (uint32_t *)(uintptr_t)arg;
-        uint32_t counter = 0;
-
+    } else if (fd == MINEMU_FD_UART_OUT) {
         if (op == MINEMU_IOCTL_UART_WRITE) {
-            while (counter < arg2) {
-                while ((uartReg->status & MINEMU_IOCTL_UART_TX_READY)==0) {
-                    uartReg->tx_data = buffer[counter];
-                    counter++;
-                }
-            }
-        } else if (op == MINEMU_IOCTL_UART_READ) {
-            while (counter < arg2 ) {
-                while ((uartReg->status & MINEMU_IOCTL_UART_RX_READY)!=0) {
-                    buffer[counter] = (uint8_t)uartReg->rx_data;
-                    counter++;
-                }
-            }
-        } 
-        
-        return (int32_t)counter;
+            uartReg = MINEMU_UART0;
+            permissions = MINEMU_PTE_READABLE;
+        } else {
+            return MINEMU_IOCTL_ERROR;
+        }
 
-        else if (fd == MINEMU_FD_RNG_TASK || fd== MINEMU_FD_RNG) {
-            if (fd == MINEMU_FD_RNG_TASK) {
-                if (op == MINEMU_OP_RNG_SET_SEED) {
-                    op = MINEMU_IOCTL_RNG_SEED;
-                } else if (op == MINEMU_OP_RNG_GET_DATA) {
-                    op = MINEMU_IOCTL_RNG_NEXT;
-                } else {
-                    return MINEMU_IOCTL_ERROR;
-                }
-            }
-            if (op == MINEMU_IOCTL_RNG_SEED) {
-                MINEMU_RNG->seed = arg;
-                return 0;
-            } else if (op==MINEMU_IOCTL_RNG_NEXT) {
-                if (!validate_user_memory_range(arg, sizeof(uint32_t), MINEMU_PTE_WRITABLE)) {
-                    return MINEMU_IOCTL_ERROR;
-                }
-                uint32_t rData = MINEMU_RNG->data;
-                copy_bytes((void *)arg, &rData, sizeof(rData));
-                return 0;
-            } else {
-                return MINEMU_IOCTL_ERROR;
-            }
-        } else if (fd == MINEMU_FD_TRACE_TASK || fd ==MINEMU_FD_TRACE) {
-            if (op != MINEMU_OP_TRACE_EVENT || op!= MINEMU_IOCTL_TRACE_EVENT) {
-                return MINEMU_IOCTL_ERROR;
-            } else {
-                minemu_trace_event(arg);
-                return 0;
-            }
-        } else if (op == MINEMU_IOCTL_RNG_STATE) {
+    } else if (fd == MINEMU_FD_RNG_TASK) {
+        if (op == MINEMU_OP_RNG_SET_SEED) {
+            MINEMU_RNG->seed = arg;
+            return 0;
+
+        } else if (op == MINEMU_OP_RNG_GET_DATA) {
             if (!validate_user_memory_range(
-                    arg,
-                    sizeof(uint32_t),
-                    MINEMU_PTE_WRITABLE)) {
+                    arg, sizeof(uint32_t), MINEMU_PTE_WRITABLE)) {
                 return MINEMU_IOCTL_ERROR;
             }
 
-            uint32_t value = MINEMU_RNG->state;
-
-            copy_bytes(
-                (void *)(uintptr_t)arg,
-                &value,
-                sizeof(value));
-
+            uint32_t value = MINEMU_RNG->data;
+            copy_bytes((void *)(uintptr_t)arg, &value, sizeof(value));
             return 0;
 
         } else {
             return MINEMU_IOCTL_ERROR;
         }
+
+    } else if (fd == MINEMU_FD_RNG) {
+        if (op == MINEMU_IOCTL_RNG_SEED) {
+            MINEMU_RNG->seed = arg;
+            return 0;
+
+        } else if (op == MINEMU_IOCTL_RNG_NEXT) {
+            if (!validate_user_memory_range(
+                    arg, sizeof(uint32_t), MINEMU_PTE_WRITABLE)) {
+                return MINEMU_IOCTL_ERROR;
+            }
+
+            uint32_t value = MINEMU_RNG->data;
+            copy_bytes((void *)(uintptr_t)arg, &value, sizeof(value));
+            return 0;
+
+        } else if (op == MINEMU_IOCTL_RNG_STATE) {
+            if (!validate_user_memory_range(
+                    arg, sizeof(uint32_t), MINEMU_PTE_WRITABLE)) {
+                return MINEMU_IOCTL_ERROR;
+            }
+
+            uint32_t value = MINEMU_RNG->state;
+            copy_bytes((void *)(uintptr_t)arg, &value, sizeof(value));
+            return 0;
+
+        } else {
+            return MINEMU_IOCTL_ERROR;
+        }
+
+    } else if (fd == MINEMU_FD_TRACE_TASK) {
+        if (op == MINEMU_OP_TRACE_EVENT) {
+            minemu_trace_event(arg);
+            return 0;
+        } else {
+            return MINEMU_IOCTL_ERROR;
+        }
+
+    } else if (fd == MINEMU_FD_TRACE) {
+        if (op == MINEMU_IOCTL_TRACE_EVENT) {
+            minemu_trace_event(arg);
+            return 0;
+        } else {
+            return MINEMU_IOCTL_ERROR;
+        }
+
+    } else {
+        return MINEMU_IOCTL_ERROR;
     }
+
+    /* Only accepted UART requests reach this transfer code. */
+    if (arg2 > INT32_MAX) {
+        return MINEMU_IOCTL_ERROR;
+    }
+
+    if (!validate_user_memory_range(arg, arg2, permissions)) {
+        return MINEMU_IOCTL_ERROR;
+    }
+
+    uint8_t *buffer = (uint8_t *)(uintptr_t)arg;
+    uint32_t counter = 0;
+
+    if (readOperation) {
+        while (counter < arg2 &&
+               (uartReg->status & MINEMU_UART_STATUS_RX_READY) != 0) {
+            buffer[counter] = (uint8_t)uartReg->rx_data;
+            ++counter;
+        }
+    } else {
+        while (counter < arg2) {
+            while ((uartReg->status &
+                    MINEMU_UART_STATUS_TX_READY) == 0) {
+            }
+
+            uartReg->tx_data = buffer[counter];
+            ++counter;
+        }
+    }
+
+    return (int32_t)counter;
+}
+
+struct minemu_trap_frame *minemu_svc_dispatch(
+    struct minemu_trap_frame *frame) {
+    //syntax + formatting was fixed with gpt 6.1 from this commit on
+
+    uint32_t mode = frame->spsr & CPSR_MODE_MASK;
+
+    if (frame->exception_id != MINEMU_EXCEPTION_SVC ||
+        mode != CPSR_MODE_USR ||
+        (frame->spsr & CPSR_THUMB) != 0) {
+        frame->r[0] = (uint32_t)MINEMU_IOCTL_ERROR;
+        return frame;
+    }
+
+    if ((frame->fault_pc & 3U) != 0 ||
+        !validate_user_memory_range(
+            frame->fault_pc,
+            sizeof(uint32_t),
+            MINEMU_PTE_READABLE | MINEMU_PTE_EXECUTABLE)) {
+        frame->r[0] = (uint32_t)MINEMU_IOCTL_ERROR;
+        return frame;
+    }
+
+    uint32_t instruction =
+        *(const uint32_t *)(uintptr_t)frame->fault_pc;
+
+    if (instruction != A32_SVC_ZERO ||
+        frame->r[7] != MINEMU_SYSCALL_IOCTL) {
+        frame->r[0] = (uint32_t)MINEMU_IOCTL_ERROR;
+        return frame;
+    }
+
+    int32_t result = dispatch_ioctl(
+        frame->r[0],
+        frame->r[1],
+        frame->r[2],
+        frame->r[3]);
+
+    frame->r[0] = (uint32_t)result;
+    return frame;
 }
 
 void minemu_undefined_dispatch(struct minemu_trap_frame *frame) {
@@ -484,21 +508,24 @@ void minemu_kernel_main(const struct minemu_boot_info *boot_info) {
         boot_info->direct_map_paddr != MINEMU_RAM_BASE ||
         boot_info->direct_map_size != MINEMU_KERNEL_DIRECT_SIZE ||
         boot_info->system_rom_base != UINT32_C(0x08000000) ||
-        boot_info->direct_map_vaddr != UINT32_C(0xc0000000) ||
-        boot_info->direct_map_paddr != UINT32_C(0x40000000) ||
-        boot_info->direct_map_size != UINT32_C(0x04000000) ||
         !map_system_rom(boot_info)) {
         minemu_trace_event(UINT32_C(0xb007bad0));
         minemu_fail_stop();
     }
+
     static const char module_name[] = "minimum-user";
 
     const struct minemu_module_record *module =
-        find_module(boot_info, module_name, sizeof(module_name) - 1U);
+        find_module(
+            boot_info,
+            module_name,
+            sizeof(module_name) - 1U);
+
     if (module == NULL || !load_user_module(boot_info, module)) {
         minemu_trace_event(UINT32_C(0x48454c02));
         minemu_fail_stop();
     }
+
     minemu_enter_user(module->entry_vaddr, USER_STACK_TOP);
 
     // minemu_trace_event(1);

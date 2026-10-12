@@ -17,19 +17,19 @@ int32_t ioctl(int fd, uint32_t op, ...) {
             arg = va_arg(args, unsigned int);
         } else if (op == MINEMU_OP_RNG_GET_DATA) {
             //need unsigned int *data
-            arg = va_arg(args, unsigned int *);
+            arg = (uint32_t)(uintptr_t)va_arg(args, unsigned int *);
         } else {
             error = 1;
         }
     } else if (fd == MINEMU_FD_UART0) {
         if (op == MINEMU_OP_UART_READ) {
             //need char *dst, int n
-            arg = va_arg(args, char *);
-            arg2 = va_arg(args, int);
+            arg = (uint32_t)(uintptr_t)va_arg(args, char *);
+            arg2 = (uint32_t)va_arg(args, int);
         } else if (op == MINEMU_OP_UART_WRITE) {
             //need char *src, int n
-            arg = va_arg(args, char *);
-            arg2 = va_arg(args, int);
+            arg = (uint32_t)(uintptr_t)va_arg(args, char *);
+            arg2 = (uint32_t)va_arg(args, int);
         } else {
             error = 1;
         }
@@ -37,12 +37,12 @@ int32_t ioctl(int fd, uint32_t op, ...) {
     } else if (fd == MINEMU_FD_UART1) {
         if (op == MINEMU_OP_UART_READ) {
             //need char *dst, int n
-            arg = va_arg(args, char *);
-            arg2 = va_arg(args, int);
+            arg = (uint32_t)(uintptr_t)va_arg(args, char *);
+            arg2 = (uint32_t)va_arg(args, int);
         } else if (op == MINEMU_OP_UART_WRITE) {
             //need char *src, int n
-            arg = va_arg(args, char *);
-            arg2 = va_arg(args, int);
+            arg = (uint32_t)(uintptr_t)va_arg(args, char *);
+            arg2 = (uint32_t)va_arg(args, int);
         } else {
             error = 1;
         }
@@ -59,7 +59,7 @@ int32_t ioctl(int fd, uint32_t op, ...) {
             arg = va_arg(args, unsigned int);
         } else if (op == MINEMU_OP_RNG_GET_DATA) {
             //need unsigned int *data
-            arg = va_arg(args, unsigned int *);
+            arg = (uint32_t)(uintptr_t)va_arg(args, unsigned int *);
         } else {
             error = 1;
         }

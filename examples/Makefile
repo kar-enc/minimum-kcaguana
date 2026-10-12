@@ -1,4 +1,4 @@
-//updated with gpt6.1 sol
+# updated with gpt6.1 sol
 KERNEL_EXAMPLES := \
 	mmio-basics \
 	svc-context-switch \
