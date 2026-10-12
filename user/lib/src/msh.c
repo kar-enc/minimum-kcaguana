@@ -36,9 +36,25 @@ void executeLine(char *line, unsigned int length) {
             ++echoStart;
         }
 
-        ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE, &line[echoStart], (int)(length - echoStart));
+        //fix so no white space after echo
+        int whiteSpace = 0;
+        
+        for (unsigned int i = echoStart; i < length; i++) {
+            if (line[i] == ' ') {
+                whiteSpace = 1;
+                continue;
+            }
+         
+
+            if (whiteSpace) {
+                ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE, " ", 1);
+                whiteSpace--; 
+            }
+
+            ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE,&line[i],1 );
+        }
         ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE, "\n", 1);
-        return;
+
 
         // if (echoStart < length) {
         //     //print the rest of the line as the echo content
@@ -65,6 +81,7 @@ void executeLine(char *line, unsigned int length) {
         ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE, "\n", 1);
     }
 }
+
 void mshStart(void) {
     char line[26];             /* 25 bytes plus the terminating '\0' */
     unsigned int length = 0;
