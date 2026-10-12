@@ -96,10 +96,11 @@ int32_t ioctl(int fd, uint32_t op, ...) {
     } else {
         error = 1;
     }
+    va_end(args);
+
     
     if (error) {
         return MINEMU_IOCTL_ERROR;
     }
-    va_end(args);
     return minemu_ioctl_assembly(fd, op, arg, arg2);
 }

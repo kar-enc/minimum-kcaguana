@@ -3,7 +3,6 @@
 #include "minemu/trace.h"
 #include "minemu/printf.h"
 #include "minemu/uart.h"
-#include "minemu/msh.h"
 #include "minemu/irq.h"
 #include "minemu/user_abi.h"
 

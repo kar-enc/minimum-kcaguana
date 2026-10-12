@@ -22,7 +22,6 @@ RUNTIME_OBJECTS := \
 	$(BUILD)/startup/boot.o \
 	$(BUILD)/runtime/uart.o \
 	$(BUILD)/runtime/printf.o \
-	$(BUILD)/runtime/msh.o \
 	$(BUILD)/startup/vectors.o
 
 OBJECTS := $(CORE_OBJECT) $(RUNTIME_OBJECTS)

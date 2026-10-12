@@ -36,7 +36,7 @@ void executeLine(char *line, unsigned int length) {
             ++echoStart;
         }
 
-        ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE, &line[echoStart], length - echoStart);
+        ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE, &line[echoStart], (int)(length - echoStart));
         ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE, "\n", 1);
         return;
 
@@ -60,8 +60,8 @@ void executeLine(char *line, unsigned int length) {
         //     }
         // }
         line[tail] = '\0';
-        ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE, "command not found: ", 18);
-        ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE, &line[head], tail - head);
+        ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE, "command not found: ", 19);
+        ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE, &line[head], (int)(tail - head));
         ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE, "\n", 1);
     }
 }
@@ -93,9 +93,12 @@ void mshStart(void) {
         if (value == '\n') {
             line[length] = '\0';
 
-            if (excess != 0U) {
-                ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE, "too long\n", 9);
-            } else {
+            // if (excess != 0U) {
+            //     ioctl(MINEMU_FD_UART0, MINEMU_OP_UART_WRITE, "too long\n", 9);
+            // } else {
+            //     executeLine(line, length);
+            // }
+            if (excess == 0) {
                 executeLine(line, length);
             }
 
