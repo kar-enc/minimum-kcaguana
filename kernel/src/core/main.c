@@ -281,32 +281,137 @@ number and request, validates any user-memory ranges, and performs the operation
 
 //check syscall number and request and the kernel validates the entire requested memory range. Every page containing part of the buffer must be mapped, accessible to the user, and readable.
 
-void validate_user_memory_range(void *addr, size_t size) {
-    
+static bool validate_user_memory_range(uint32_t addr, uint32_t length, uint32_t permissions) {
+
+    if (length == 0) {
+        return true;
+    }
+
+    if (addr <USER_IMAGE_BASE || addr > USER_STACK_TOP || addr + length > USER_STACK_BOTTOM) {
+        return false;
+
+    }
+
+    //READ for uart read and write for uart write. fix !!!
+    uint32_t permissions = MINEMU_PTE_VALID | MINEMU_PTE_USER | permissions;
+
+
+    //because buffer can touch 2 pages need to check all possibilites
+    uint32_t startPage = MINEMU_PTE_PAGE_SIZE * (addr / MINEMU_PAGE_SIZE);
+    uint32_t endPage = MINEMU_PTE_PAGE_SIZE * ((addr + length - 1) / MINEMU_PAGE_SIZE);
+
+    for (uint32_t page = startPage; page <= endPage; page += MINEMU_PAGE_SIZE) {
+        //there 1024 entried
+        uint32_t index = (page >> 12) & 1023U;
+        if (user_page_table[index] != permissions) {
+            return false;
+        }
+
+    }
+    return true;
 }
+
 
 struct minemu_trap_frame *minemu_svc_dispatch(struct minemu_trap_frame *frame) {
     uint32_t mode = frame->spsr & CPSR_MODE_MASK;
     if (frame->exception_id != MINEMU_EXCEPTION_SVC || mode != CPSR_MODE_USR ||
         (frame->spsr & CPSR_THUMB) != 0) {
-        frame->r[0] = (uint32_t)MINEMU_HELLO_SYSCALL_ERROR;
+        frame->r[0] = (uint32_t)MINEMU_IOCTL_ERROR;
         return frame;
     }
 
+    if ((frame->fault_pc & 3U) != 0 || !validate_user_memory_range(frame->fault_pc, sizeof(uint32_t))) {
+        frame->r[0] = (uint32_t)MINEMU_IOCTL_ERROR;
+        return frame;
+    }   
     uint32_t instruction = *(const uint32_t *)(uintptr_t)frame->fault_pc;
     if (instruction != A32_SVC_ZERO || frame->r[7] != MINEMU_HELLO_SYSCALL_UART_PUTCHAR ||
-        frame->r[0] > UINT8_MAX) {
-        frame->r[0] = (uint32_t)MINEMU_HELLO_SYSCALL_ERROR;
+        frame->r[0] > MINEMU_SYSCALL_IOCTL) {
+        frame->r[0] = (uint32_t)MINEMU_IOCTL_ERROR;
         return frame;
     }
-
-    if (!user_syscall_observed) {
-        minemu_trace_event(TRACE_USER_SYSCALL);
-        user_syscall_observed = true;
-    }
-    MINEMU_UART0->tx_data = frame->r[0];
-    frame->r[0] = 0;
+    //adjust exmaple for ioctl, the 4 arguments are passed in r0, r1, r2, r3
+    int32_t result = ioctl(frame->r[0], frame->r[1], frame->r[2], frame->r[3]);
+    frame->r[0] = (uint32_t)result;
     return frame;
+}
+
+static uint32_t ioctl(uint32_t fd, uint32_t op, void *arg, void *arg2) {
+    if (fd == MINEMU_FD_UART_IN || fd == MINEMU_FD_UART_OUT) {
+       //will point to the correct uart register 
+       volatile struct minemu_art_regs *uartReg;
+       
+       if (fd == MINEMU_FD_UART_IN) {
+           uartReg = MINEMU_UART0;
+       } else {
+           uartReg = MINEMU_UART1;
+       }
+
+       //make sure op is valid
+       if (op != MINEMU_IOCTL_UART_GETCHAR && op != MINEMU_IOCTL_UART_PUTCHAR) {
+           return MINEMU_IOCTL_ERROR;
+       }
+
+       uint32_t permissions;
+       if (op == MINEMU_IOCTL_UART_READ) {
+            permissions = MINEMU_PTE_READABLE;
+        } else if (op == MINEMU_IOCTL_UART_WRITE) {
+            permissions = MINEMU_PTE_WRITABLE;
+        } else {
+            return MINEMU_IOCTL_ERROR;
+        }
+
+        if (!validate_user_memory_range((uintptr_t)arg, sizeof(uint32_t), permissions)) {
+            return MINEMU_IOCTL_ERROR;
+        }
+
+        //make buffer so bytes cna be accessed
+        //for write loop until ready then write to tx
+        //for read loops until no more room then reach from rx then stores in buffer
+
+        uint32_t *buffer = (uint32_t *)(uintptr_t)arg;
+        uint32_t counter = 0;
+
+        if (op == MINEMU_OP_UART_WRITE) {
+            while (counter < arg) {
+                while ((uart->status & MINEMU_IOCTL_UART_TX_READY)==0) {
+                    uartReg->tx_data = buffer[counter];
+                    counter++;
+                }
+            }
+        } else if (op == MINEMU_OP_UART_READ) {
+            while (counter < arg) {
+                while ((uartReg->status & MINEMU_IOCTL_UART_RX_READY)!=0) {
+                    buffer[counter] = uartReg->rx_data;
+                    counter++;
+                }
+            }
+        } else {
+            return MINEMU_IOCTL_ERROR;
+        }
+
+        if (fd == MINEMU_FD_RNG_TASK) {
+            if (op == MINEMU_OP_RNG_SET_SEED) {
+                MINEMU_RNG->seed = arg;
+                return 0;
+            } else if (op==MINEMU_OP_RNG_GET_DATA) {
+                uint32_t rData = MINEMU_RNG->data;
+                copy_bytes((void *)arg, &rData, sizeof(rData));
+                return 0;
+            } else {
+                return MINEMU_IOCTL_ERROR;
+            }
+        } else if (fd == MINEMU_FD_TRACE_TASK) {
+            if (op != MINEMU_OP_TRACE_EVENT) {
+                return MINEMU_IOCTL_ERROR;
+            } else {
+                minemu_trace_event(arg);
+                return 0;
+            }
+        } else {
+            return MINEMU_IOCTL_ERROR;
+        }
+    }
 }
 
 void minemu_undefined_dispatch(struct minemu_trap_frame *frame) {
