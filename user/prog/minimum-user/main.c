@@ -10,6 +10,5 @@ void minemu_user_main(void) {
     //     __asm__ volatile("nop");
     // }
     minemu_trace_event(1);
-    uartStart();
     mshStart();
 }
