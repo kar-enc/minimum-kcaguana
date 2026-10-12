@@ -336,27 +336,47 @@ struct minemu_trap_frame *minemu_svc_dispatch(struct minemu_trap_frame *frame) {
     return frame;
 }
 
-static uint32_t ioctl(uint32_t fd, uint32_t op, void *arg, void *arg2) {
+static uint32_t ioctl(uint32_t fd, uint32_t op, uint32_t arg, uint32_t arg2) {
     if (fd == MINEMU_FD_UART_IN || fd == MINEMU_FD_UART_OUT) {
        //will point to the correct uart register 
-       volatile struct minemu_art_regs *uartReg;
+       volatile struct minemu_art_regs *uartReg = NULL;
        
-       if (fd == MINEMU_FD_UART_IN) {
-           uartReg = MINEMU_UART0;
-       } else {
-           uartReg = MINEMU_UART1;
+       //making sure kernal can handler both interfaces 
+       if (fd == MINEMU_FD_UART_IN || fd == MINEMU_FD_UART_OUT || fd == MINEMU_FD_UART0 || fd == MINEMU_FD_UART1) {
+            if (fd == MINEMU_FD_UART1){
+                uartReg = MINEMU_UART1;
+            } else {
+                uartReg = MINEMU_UART0;
+            }
        }
 
-       //make sure op is valid
-       if (op != MINEMU_IOCTL_UART_GETCHAR && op != MINEMU_IOCTL_UART_PUTCHAR) {
-           return MINEMU_IOCTL_ERROR;
-       }
+       if (fd == MINEMU_FD_UART0 || fd == MINEMU_FD_UART1) {
+            if (op == MINEMU_OP_UART_READ) {
+                op = MINEMU_IOCTL_UART_READ;
+            } else if (op == MINEMU_OP_UART_WRITE) {
+                op = MINEMU_IOCTL_UART_WRITE;
+            } else {
+                return MINEMU_IOCTL_ERROR;
+            }
+        } else if (fd == MINEMU_FD_UART_IN) {
+            if (op != MINEMU_IOCTL_UART_READ) {
+                return MINEMU_IOCTL_ERROR;
+            }
+        } else if (fd == MINEMU_FD_UART_OUT) {
+            if (op != MINEMU_IOCTL_UART_WRITE) {
+                return MINEMU_IOCTL_ERROR;
+            }
+        }
+
+        if (arg2 > INT32_MAX) {
+            return MINEMU_IOCTL_ERROR;
+        }
 
        uint32_t permissions;
        if (op == MINEMU_IOCTL_UART_READ) {
-            permissions = MINEMU_PTE_READABLE;
-        } else if (op == MINEMU_IOCTL_UART_WRITE) {
             permissions = MINEMU_PTE_WRITABLE;
+        } else if (op == MINEMU_IOCTL_UART_WRITE) {
+            permissions = MINEMU_PTE_READABLE;
         } else {
             return MINEMU_IOCTL_ERROR;
         }
@@ -372,42 +392,71 @@ static uint32_t ioctl(uint32_t fd, uint32_t op, void *arg, void *arg2) {
         uint32_t *buffer = (uint32_t *)(uintptr_t)arg;
         uint32_t counter = 0;
 
-        if (op == MINEMU_OP_UART_WRITE) {
-            while (counter < arg) {
-                while ((uart->status & MINEMU_IOCTL_UART_TX_READY)==0) {
+        if (op == MINEMU_IOCTL_UART_WRITE) {
+            while (counter < arg2) {
+                while ((uartReg->status & MINEMU_IOCTL_UART_TX_READY)==0) {
                     uartReg->tx_data = buffer[counter];
                     counter++;
                 }
             }
-        } else if (op == MINEMU_OP_UART_READ) {
-            while (counter < arg) {
+        } else if (op == MINEMU_IOCTL_UART_READ) {
+            while (counter < arg2 ) {
                 while ((uartReg->status & MINEMU_IOCTL_UART_RX_READY)!=0) {
-                    buffer[counter] = uartReg->rx_data;
+                    buffer[counter] = (uint8_t)uartReg->rx_data;
                     counter++;
                 }
             }
-        } else {
-            return MINEMU_IOCTL_ERROR;
-        }
+        } 
+        
+        return (int32_t)counter;
 
-        if (fd == MINEMU_FD_RNG_TASK) {
-            if (op == MINEMU_OP_RNG_SET_SEED) {
+        else if (fd == MINEMU_FD_RNG_TASK || fd== MINEMU_FD_RNG) {
+            if (fd == MINEMU_FD_RNG_TASK) {
+                if (op == MINEMU_OP_RNG_SET_SEED) {
+                    op = MINEMU_IOCTL_RNG_SEED;
+                } else if (op == MINEMU_OP_RNG_GET_DATA) {
+                    op = MINEMU_IOCTL_RNG_NEXT;
+                } else {
+                    return MINEMU_IOCTL_ERROR;
+                }
+            }
+            if (op == MINEMU_IOCTL_RNG_SEED) {
                 MINEMU_RNG->seed = arg;
                 return 0;
-            } else if (op==MINEMU_OP_RNG_GET_DATA) {
+            } else if (op==MINEMU_IOCTL_RNG_NEXT) {
+                if (!validate_user_memory_range(arg, sizeof(uint32_t), MINEMU_PTE_WRITABLE)) {
+                    return MINEMU_IOCTL_ERROR;
+                }
                 uint32_t rData = MINEMU_RNG->data;
                 copy_bytes((void *)arg, &rData, sizeof(rData));
                 return 0;
             } else {
                 return MINEMU_IOCTL_ERROR;
             }
-        } else if (fd == MINEMU_FD_TRACE_TASK) {
-            if (op != MINEMU_OP_TRACE_EVENT) {
+        } else if (fd == MINEMU_FD_TRACE_TASK || fd ==MINEMU_FD_TRACE) {
+            if (op != MINEMU_OP_TRACE_EVENT || op!= MINEMU_IOCTL_TRACE_EVENT) {
                 return MINEMU_IOCTL_ERROR;
             } else {
                 minemu_trace_event(arg);
                 return 0;
             }
+        } else if (op == MINEMU_IOCTL_RNG_STATE) {
+            if (!validate_user_memory_range(
+                    arg,
+                    sizeof(uint32_t),
+                    MINEMU_PTE_WRITABLE)) {
+                return MINEMU_IOCTL_ERROR;
+            }
+
+            uint32_t value = MINEMU_RNG->state;
+
+            copy_bytes(
+                (void *)(uintptr_t)arg,
+                &value,
+                sizeof(value));
+
+            return 0;
+
         } else {
             return MINEMU_IOCTL_ERROR;
         }
