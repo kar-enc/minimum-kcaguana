@@ -53,16 +53,6 @@ int32_t ioctl(int fd, uint32_t op, ...) {
         } else {
             error = 1;
         }
-    } if (fd == MINEMU_FD_RNG_TASK) {
-        if (op == MINEMU_OP_RNG_SET_SEED) {
-            //need unsigned int seed
-            arg = va_arg(args, unsigned int);
-        } else if (op == MINEMU_OP_RNG_GET_DATA) {
-            //need unsigned int *data
-            arg = (uint32_t)(uintptr_t)va_arg(args, unsigned int *);
-        } else {
-            error = 1;
-        }
     } 
     //interface for tests
         else if (fd == MINEMU_FD_UART_IN) {
