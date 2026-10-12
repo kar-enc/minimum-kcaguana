@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include "minemu/user_abi.h"
+#include "msh.h"
 
 
 void minemu_user_main(void) {
@@ -9,6 +10,5 @@ void minemu_user_main(void) {
     // for (;;) {
     //     __asm__ volatile("nop");
     // }
-    minemu_trace_event(1);
     mshStart();
 }
