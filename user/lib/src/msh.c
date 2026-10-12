@@ -66,7 +66,7 @@ void executeLine(char *line, unsigned int length) {
     }
 }
 void mshStart(void) {
-    char line[21];             /* 20 bytes plus the terminating '\0' */
+    char line[26];             /* 25 bytes plus the terminating '\0' */
     unsigned int length = 0;
     unsigned int excess = 0;
 
@@ -119,9 +119,9 @@ void mshStart(void) {
             continue;
         }
 
-        //if lines over 20 bytes
+        //if lines over 5 bytes
 
-        if (length < 20) {
+        if (length < 25) {
             line[length] = (char)value;
             length++;
         } else {
