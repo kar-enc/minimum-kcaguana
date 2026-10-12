@@ -27,7 +27,6 @@
 #define CPSR_MODE_USR UINT32_C(0x10)
 #define CPSR_THUMB UINT32_C(0x20)
 #define A32_SVC_ZERO UINT32_C(0xef000000)
-#define TRACE_USER_SYSCALL UINT32_C(0x48454c10)
 
 
 static uint32_t system_rom_tables[SYSTEM_ROM_TABLE_COUNT][1024]
@@ -39,7 +38,6 @@ static uint8_t user_stack[MINEMU_PAGE_SIZE] __attribute__((aligned(MINEMU_PAGE_S
 static uint32_t user_page_vaddrs[MAX_USER_IMAGE_PAGES];
 static uint32_t user_page_flags[MAX_USER_IMAGE_PAGES];
 static size_t user_page_count;
-static bool user_syscall_observed;
 
 
 void minemu_enter_user(uint32_t entry_vaddr, uint32_t stack_top) __attribute__((noreturn));
@@ -279,10 +277,13 @@ we have to:
 syscall:
 verify call came from a32 user mode (through the expected svc instruction) checks the syscall
 number and request, validates any user-memory ranges, and performs the operation and return saved in r0
-
-
-
 */
+
+//check syscall number and request and the kernel validates the entire requested memory range. Every page containing part of the buffer must be mapped, accessible to the user, and readable.
+
+void validate_user_memory_range(void *addr, size_t size) {
+    
+}
 
 struct minemu_trap_frame *minemu_svc_dispatch(struct minemu_trap_frame *frame) {
     uint32_t mode = frame->spsr & CPSR_MODE_MASK;

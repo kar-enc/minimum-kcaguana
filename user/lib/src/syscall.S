@@ -1,4 +1,13 @@
+@ assembler directives added by gpt6.1 sol 
+
 #include "minemu/user_abi.h"
+
+.syntax unified
+.cpu cortex-a9
+.arm
+
+.global minemu_ioctl_assembly
+.type minemu_ioctl_assembly, %function
 
 minemu_ioctl_assembly:
     sub sp, sp, #8
@@ -12,4 +21,4 @@ minemu_ioctl_assembly:
     add sp, sp, #8
     bx lr
 
-
+.size minemu_ioctl_assembly, .-minemu_ioctl_assembly
