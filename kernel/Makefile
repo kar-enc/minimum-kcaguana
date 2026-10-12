@@ -1,3 +1,4 @@
+//updated with gpt6.1 sol
 ARM_PREFIX ?= arm-none-eabi-
 CC := $(ARM_PREFIX)gcc
 AR := $(ARM_PREFIX)ar
@@ -11,7 +12,7 @@ CORE_OBJECT := \
 	$(BUILD)/runtime/irq.o \
 	$(BUILD)/startup/irq.o \
 	$(BUILD)/startup/svc.o \
-	$(BUILD)/startup/user.o \
+	$(BUILD)/startup/user.o
 
 RUNTIME_OBJECTS := \
 	$(BUILD)/runtime/block.o \
@@ -22,13 +23,14 @@ RUNTIME_OBJECTS := \
 	$(BUILD)/runtime/uart.o \
 	$(BUILD)/runtime/printf.o \
 	$(BUILD)/runtime/msh.o \
-	$(BUILD)/startup/vectors.o 
+	$(BUILD)/startup/vectors.o
 
 OBJECTS := $(CORE_OBJECT) $(RUNTIME_OBJECTS)
 DEPENDENCIES := $(OBJECTS:.o=.d)
 
 ARCH_FLAGS := -mcpu=cortex-a9 -marm -mfloat-abi=soft
 CPPFLAGS := -Iinclude
+
 CFLAGS := $(ARCH_FLAGS) \
 	-ffreestanding \
 	-fno-builtin \
@@ -62,9 +64,10 @@ all: $(KERNEL)
 
 runtime: $(RUNTIME)
 
-$(RUNTIME): $(RUNTIME_OBJECTS)
+$(RUNTIME): $(RUNTIME_OBJECTS) Makefile
 	@mkdir -p $(dir $@)
-	$(AR) rcs $@ $^
+	rm -f $@
+	$(AR) rcs $@ $(RUNTIME_OBJECTS)
 
 $(KERNEL): $(CORE_OBJECT) $(RUNTIME) linker/kernel.ld
 	@mkdir -p $(dir $@)
@@ -81,6 +84,8 @@ $(BUILD)/runtime/%.o: src/runtime/%.c
 $(BUILD)/startup/%.o: src/startup/%.S
 	@mkdir -p $(dir $@)
 	$(CC) $(CPPFLAGS) $(ASFLAGS) -c $< -o $@
+
+$(OBJECTS): Makefile
 
 clean:
 	rm -rf $(BUILD)

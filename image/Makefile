@@ -1,34 +1,21 @@
+//updated with gpt6.1 sol
 MINEMU ?= minemu
 
 IMAGE := build/minimum.img
 KERNEL := ../kernel/build/minimum-kernel.elf
 USER_PROGRAM := ../user/prog/minimum-user/build/minimum-user.elf
 
-KERNEL_INPUTS := $(wildcard ../kernel/src/core/*.c) \
-	$(wildcard ../kernel/src/runtime/*.c) \
-	$(wildcard ../kernel/src/startup/*.S) \
-	$(wildcard ../kernel/include/minemu/*.h) \
-	../kernel/linker/kernel.ld \
-	../kernel/Makefile
-
-USER_INPUTS := $(wildcard ../user/prog/minimum-user/*.c) \
-	$(wildcard ../user/prog/minimum-user/*.S) \
-	$(wildcard ../user/lib/src/*.c) \
-	$(wildcard ../user/lib/include/*.h) \
-	../user/common/common.mk \
-	../user/common/user.ld \
-	../user/lib/Makefile \
-	../user/prog/minimum-user/Makefile
-
-.PHONY: all clean
+.PHONY: all clean FORCE
 
 all: $(IMAGE)
 
-$(KERNEL): $(KERNEL_INPUTS)
+$(KERNEL): FORCE
 	$(MAKE) -C ../kernel all
 
-$(USER_PROGRAM): $(USER_INPUTS)
+$(USER_PROGRAM): FORCE
 	$(MAKE) -C ../user/prog/minimum-user all
+
+FORCE:
 
 $(IMAGE): minimum.toml $(KERNEL) $(USER_PROGRAM)
 	@mkdir -p $(dir $@)

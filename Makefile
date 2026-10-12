@@ -1,3 +1,4 @@
+//updated with gpt6.1 sol
 MINEMU ?= minemu
 
 .PHONY: all bootloader bootloader-check kernel kernel-examples user image \
@@ -14,7 +15,7 @@ bootloader-check:
 kernel:
 	$(MAKE) -C kernel all
 
-kernel-examples:
+kernel-examples: kernel
 	$(MAKE) -C examples kernel-examples
 
 user:

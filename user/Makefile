@@ -1,15 +1,16 @@
+//updated with gpt6.1 sol
 PROGRAMS := minimum-user
 
 .PHONY: all lib programs clean $(PROGRAMS)
 
-all: lib programs
+all: programs
 
 lib:
 	$(MAKE) -C lib all
 
 programs: $(PROGRAMS)
 
-$(PROGRAMS):
+$(PROGRAMS): lib
 	$(MAKE) -C prog/$@ all
 
 clean:

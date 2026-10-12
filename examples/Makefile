@@ -1,15 +1,19 @@
+//updated with gpt6.1 sol
 KERNEL_EXAMPLES := \
 	mmio-basics \
 	svc-context-switch \
 	irq-context-switch
 
-.PHONY: all kernel-examples user-mode-hello clean $(KERNEL_EXAMPLES)
+.PHONY: all runtime kernel-examples user-mode-hello clean $(KERNEL_EXAMPLES)
 
 all: kernel-examples
 
 kernel-examples: $(KERNEL_EXAMPLES)
 
-$(KERNEL_EXAMPLES):
+runtime:
+	$(MAKE) -C ../kernel runtime
+
+$(KERNEL_EXAMPLES): runtime
 	$(MAKE) -C $@ all
 
 user-mode-hello:
